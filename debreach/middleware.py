@@ -1,15 +1,16 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
 
-import base64
 import logging
 import random
-from Crypto.Cipher import AES
 
 from django.core.exceptions import SuspiciousOperation
+from django.core.signing import b64_decode
+from django.utils.crypto import get_random_string
+from django.utils.encoding import force_bytes, force_text
+from django.utils.six import binary_type, string_types
 
-from debreach.compat import \
-    force_bytes, get_random_string, string_types, binary_type, force_text
+from debreach.utils import xor
 
 
 log = logging.getLogger(__name__)
@@ -17,19 +18,21 @@ log = logging.getLogger(__name__)
 
 class CSRFCryptMiddleware(object):
 
-    def process_request(self, request):
+    def _decode(self, token):
+        key, value = force_bytes(token, encoding='latin-1').split(b'$', 1)
+        return force_text(xor(b64_decode(value), key), encoding='latin-1')
+
+    def process_view(self, request, view, view_args, view_kwargs):
+        if getattr(view, 'csrf_exempt', False):
+            return None
         if request.POST.get('csrfmiddlewaretoken') \
                 and '$' in request.POST.get('csrfmiddlewaretoken'):
             try:
+                post_was_mutable = request.POST._mutable
                 POST = request.POST.copy()
                 token = POST.get('csrfmiddlewaretoken')
-                key, value = token.split('$')
-                aes = AES.new(key)
-                POST['csrfmiddlewaretoken'] = force_bytes(
-                    aes.decrypt(
-                        force_bytes(base64.b64decode(value))).rstrip(b'#')
-                )
-                POST._mutable = False
+                POST['csrfmiddlewaretoken'] = self._decode(token)
+                POST._mutable = post_was_mutable
                 request.POST = POST
             except:
                 log.exception('Error decoding csrfmiddlewaretoken')
@@ -40,17 +43,13 @@ class CSRFCryptMiddleware(object):
             try:
                 META = request.META.copy()
                 token = META.get('HTTP_X_CSRFTOKEN')
-                key, value = token.split('$')
-                aes = AES.new(key)
-                META['HTTP_X_CSRFTOKEN'] = force_bytes(
-                    aes.decrypt(base64.b64decode(value)).rstrip(b'#')
-                )
+                META['HTTP_X_CSRFTOKEN'] = self._decode(token)
                 request.META = META
             except:
                 log.exception('Error decoding csrfmiddlewaretoken')
                 raise SuspiciousOperation(
                     'X-CSRFToken header has been tampered with')
-            return
+        return None
 
 
 class RandomCommentMiddleware(object):
@@ -58,10 +57,14 @@ class RandomCommentMiddleware(object):
     def process_response(self, request, response):
         str_types = string_types + (binary_type,)
         if not getattr(response, 'streaming', False) \
-                and response['Content-Type'].startswith('text/html') \
-                and isinstance(response.content, str_types):
+                and response.get('Content-Type', '').startswith('text/html') \
+                and response.content \
+                and isinstance(response.content, str_types) \
+                and not getattr(response, '_random_comment_exempt', False) \
+                and not getattr(response, '_random_comment_applied', False):
             comment = '<!-- {0} -->'.format(
                 get_random_string(random.choice(range(12, 25))))
             response.content = '{0}{1}'.format(
                 force_text(response.content), comment)
+            response._random_comment_applied = True
         return response

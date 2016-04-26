@@ -22,9 +22,10 @@ version = get_version('debreach')
 
 if sys.argv[-1] == 'publish':
     os.system('python setup.py sdist upload')
+    os.system('python setup.py bdist_wheel upload')
     args = {'version': version}
     print('You probably want to also tag the version now:')
-    print(' git tag -a release/{version} -m \'version {version}\''.format(
+    print(' git tag -a {version} -m \'version {version}\''.format(
         **args))
     print(' git push --tags')
     sys.exit()
@@ -39,17 +40,30 @@ setup(
                 'protection against the BREACH attack in Django.',
     author='Luke Pomfrey',
     author_email='lpomfrey@gmail.com',
-    packages=find_packages(),
-    install_requires=open('requirements.txt').read().split('\n'),
+    packages=find_packages(exclude=('test_project', 'docs')),
+    install_requires=[],
+    tests_require=[
+        'django',
+    ],
     test_suite='runtests.runtests',
     classifiers=[
-        'Development Status :: 4 - Beta',
+        'Development Status :: 5 - Production/Stable',
         'Environment :: Web Environment',
-        'Framework :: Django',
         'Intended Audience :: Developers',
         'License :: OSI Approved :: BSD License',
         'Operating System :: OS Independent',
+        'Framework :: Django',
+        'Framework :: Django :: 1.8',
+        'Framework :: Django :: 1.9',
         'Programming Language :: Python',
+        'Programming Language :: Python :: 2',
+        'Programming Language :: Python :: 2.7',
+        'Programming Language :: Python :: 3',
+        'Programming Language :: Python :: 3.3',
+        'Programming Language :: Python :: 3.4',
+        'Programming Language :: Python :: 3.5',
+        'Programming Language :: Python :: Implementation :: CPython',
+        'Programming Language :: Python :: Implementation :: PyPy',
         'Topic :: Internet :: WWW/HTTP'
     ]
 )

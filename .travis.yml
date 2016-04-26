@@ -2,10 +2,14 @@ language: python
 python:
     - "2.7"
     - "3.3"
+    - "3.4"
+    - "3.5"
     - "pypy"
+env:
+    - DJANGO="django>=1.8,<1.9"
+    - DJANGO="django>=1.9"
 install:
-    - "if [[ $TRAVIS_PYTHON_VERSION == 'pypy' ]]; then pip install PyCrypto==2.3; fi"
-    - "pip install -r requirements.txt --use-mirrors"
+    - "pip install ${DJANGO}"
 before_script:
     - "pip install python-coveralls coverage"
 script:
@@ -14,3 +18,7 @@ after_success:
     - "coveralls"
 notifications:
     email: false
+matrix:
+  exclude:
+    - python: "3.3"
+      env: DJANGO="django>=1.9"
